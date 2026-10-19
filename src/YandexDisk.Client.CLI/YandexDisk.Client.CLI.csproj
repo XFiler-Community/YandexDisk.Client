@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>0.0.0-dev</Version>
+    <Product>Yandex Disk CLI Client</Product>
+    <Authors>Yuriy Nagaev</Authors>
+    <Company />
+    <PackageLicenseUrl>https://github.com/raidenyn/yandexdisk.client/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/raidenyn/yandexdisk.client</PackageProjectUrl>
+    <PackageIconUrl>https://raw.githubusercontent.com/raidenyn/yandexdisk.client/master/icon.png</PackageIconUrl>
+    <RepositoryUrl>https://github.com/raidenyn/yandexdisk.client</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>yandex, disk, cloud disk, client, cli</PackageTags>
+    <Copyright>Copyright (c) 2015-2019 Yuriy Nagaev</Copyright>
+    <Description>.NET CLI for Yandex Desktop.</Description>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netcoreapp2.2|AnyCPU'">
+    <NoWarn>1701;1702;NU5125</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\XFiler.YandexDisk.Client\XFiler.YandexDisk.Client.csproj" />
+  </ItemGroup>
+
+</Project>
