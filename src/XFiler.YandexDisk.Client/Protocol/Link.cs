@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace XFiler.YandexDisk.Client.Protocol;
 
@@ -11,13 +11,13 @@ public class Link : ProtocolObjectResponse
     /// URL. Может быть шаблонизирован, см. ключ templated.
     /// </summary>
     [JsonPropertyName("href")]
-    public string Href { get; set; }
+    public string Href { get; set; } = "";
 
     /// <summary>
     /// HTTP-метод для запроса URL из ключа href.
     /// </summary>
     [JsonPropertyName("method")]
-    public string Method { get; set; }
+    public string Method { get; set; } = "GET";
 
     /// <summary>
     /// Признак URL, который был шаблонизирован согласно RFC 6570. Возможные значения:
@@ -27,6 +27,3 @@ public class Link : ProtocolObjectResponse
     [JsonPropertyName("templated")]
     public bool Templated { get; set; }
 }
-
-[JsonSerializable(typeof(Link))]
-internal partial class LinkJsonContext : JsonSerializerContext;

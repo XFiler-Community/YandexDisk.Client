@@ -4,13 +4,17 @@ using System.Threading.Tasks;
 
 namespace XFiler.YandexDisk.Client.Http;
 
-internal class RealHttpClientWrapper(HttpClient httpClient) : IHttpClient
+internal sealed class RealHttpClientWrapper(HttpClient httpClient, bool ownsHttpClient) : IHttpClient
 {
     public Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request, 
-        CancellationToken cancellationToken, 
-        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead) 
+        HttpRequestMessage request,
+        CancellationToken cancellationToken,
+        HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead)
         => httpClient.SendAsync(request, completionOption, cancellationToken);
 
-    public void Dispose() => httpClient.Dispose();
+    public void Dispose()
+    {
+        if (ownsHttpClient)
+            httpClient.Dispose();
+    }
 }

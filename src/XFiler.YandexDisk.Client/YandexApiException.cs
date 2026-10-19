@@ -5,51 +5,52 @@ using XFiler.YandexDisk.Client.Protocol;
 namespace XFiler.YandexDisk.Client;
 
 /// <summary>
-/// Exception provide any exceptions risen on yandex server 
+/// The API answered with an error status.
 /// </summary>
-[Serializable]
 public class YandexApiException : Exception
 {
     /// <summary>
-    /// Http status code from Yandex server
+    /// HTTP status of the failed response
     /// </summary>
     public HttpStatusCode StatusCode { get; }
 
     /// <summary>
-    /// Reason phrase from Yandex server
+    /// HTTP reason phrase of the failed response
     /// </summary>
     public string? ReasonPhrase { get; }
 
     /// <summary>
-    /// Error description from Yandex
+    /// Error code and description from the response body, when it had one
     /// </summary>
     public ErrorDescription? Error { get; }
 
-    internal YandexApiException(HttpStatusCode statusCode, string reasonPhrase, ErrorDescription error)
-        : base(error?.Description ?? reasonPhrase)
+    public YandexApiException(HttpStatusCode statusCode, string? reasonPhrase, ErrorDescription? error,
+        Exception? innerException = null)
+        : base(error?.Description ?? reasonPhrase ?? $"HTTP {(int)statusCode}", innerException)
     {
-        Error = error;
         StatusCode = statusCode;
         ReasonPhrase = reasonPhrase;
+        Error = error;
     }
 
-    /// <summary>
-    /// Format current exception to string
-    /// </summary>
-    /// <returns></returns>
-    public override string ToString()
-    {
-        return String.Format("StatusCode: {0}, {1}. {2}" + Environment.NewLine + "{3}", StatusCode, ReasonPhrase, Message, StackTrace);
-    }
+    public override string ToString() => $"StatusCode: {StatusCode}, {ReasonPhrase}. {base.ToString()}";
 }
 
 /// <summary>
-/// Exception provide authorization errors on yandex server 
+/// The OAuth token is missing, invalid or expired (HTTP 401).
 /// </summary>
-[Serializable]
-public class NotAuthorizedException : YandexApiException
+public class NotAuthorizedException(HttpStatusCode statusCode, string? reasonPhrase, ErrorDescription? error)
+    : YandexApiException(statusCode, reasonPhrase, error);
+
+/// <summary>
+/// An asynchronous operation (copy, move, delete, trash) ended with the "failure" status.
+/// </summary>
+public class YandexOperationFailedException(Link operation)
+    : YandexApiException(HttpStatusCode.OK, reasonPhrase: null,
+        new ErrorDescription { Error = "OperationFailed", Description = $"Operation failed: {operation.Href}" })
 {
-    internal NotAuthorizedException(string reasonPhrase, ErrorDescription error)
-        : base(HttpStatusCode.Unauthorized, reasonPhrase, error)
-    { }
+    /// <summary>
+    /// Link to the operation status
+    /// </summary>
+    public Link Operation { get; } = operation;
 }

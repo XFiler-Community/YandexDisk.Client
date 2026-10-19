@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace XFiler.YandexDisk.Client.Protocol;
 
@@ -11,14 +11,11 @@ public class ErrorDescription : ProtocolObjectResponse
     /// Подробное описание ошибки в помощь разработчику.
     /// </summary>
     [JsonPropertyName("description")]
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
     /// <summary>
     /// Идентификатор ошибки для программной обработки.
     /// </summary>
     [JsonPropertyName("error")]
-    public string Error { get; set; }
+    public string? Error { get; set; }
 }
-
-[JsonSerializable(typeof(ErrorDescription))]
-internal partial class ErrorDescriptionJsonContext : JsonSerializerContext;

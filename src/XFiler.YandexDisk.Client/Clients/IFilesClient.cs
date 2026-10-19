@@ -12,7 +12,7 @@ namespace XFiler.YandexDisk.Client.Clients;
 public interface IFilesClient
 {
     /// <summary>
-    /// Return link for file upload 
+    /// Return link for file upload
     /// </summary>
     /// <param name="path">Path on Disk for uploading file</param>
     /// <param name="overwrite">If file exists it will be overwritten</param>
@@ -20,33 +20,32 @@ public interface IFilesClient
     Task<Link> GetUploadLinkAsync(string path, bool overwrite, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Upload file to Disk on link recivied by <see cref="GetUploadLinkAsync"/>
+    /// Upload <paramref name="file"/> from its current position to a link from <see cref="GetUploadLinkAsync"/>.
+    /// The stream is not disposed.
     /// </summary>
     Task UploadAsync(Link link, Stream file, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Return link for file download 
+    /// Upload like <see cref="UploadAsync"/>, reporting the sent fraction (0.0 – 1.0) of <paramref name="fileSize"/>.
     /// </summary>
-    /// <param name="path">Path to downloading fileon Disk</param>
+    Task UploadWithProgressAsync(Link link, Stream file, long fileSize, Action<double>? progressCallback,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Return link for file download
+    /// </summary>
+    /// <param name="path">Path to downloading file on Disk</param>
     /// <param name="cancellationToken"></param>
     Task<Link> GetDownloadLinkAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Download file from Disk on link recivied by <see cref="GetDownloadLinkAsync"/>
+    /// Open the file from a link from <see cref="GetDownloadLinkAsync"/> as a network stream.
+    /// The file is not buffered in memory; dispose the stream to release the connection.
     /// </summary>
     Task<Stream> DownloadAsync(Link link, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Download file from Disk on link recivied by <see cref="GetDownloadLinkAsync"/>
-    /// without waiting for the file to be completely downloaded to the stream
-    /// </summary>
-    /// <returns>Stream and content length</returns>
-    Task<(Stream, long)> DownloadFastAsync(Link link, CancellationToken cancellationToken = default);
-
 
     /// <summary>
-    /// Upload file to Disk on link recivied by <see cref="GetUploadLinkAsync"/>
-    /// with progress callback 
+    /// Like <see cref="DownloadAsync"/>, also returning the file length from Content-Length (0 if unknown).
     /// </summary>
-    Task UploadWithProgressAsync(Link link, Stream file, long fileSize, Action<double> progressCallback, CancellationToken ct = default);
+    Task<(Stream Stream, long Length)> DownloadFastAsync(Link link, CancellationToken cancellationToken = default);
 }

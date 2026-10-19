@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Http;
-using System.Runtime.Serialization;
-using System.Text;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading;
@@ -11,212 +10,164 @@ using XFiler.YandexDisk.Client.Protocol;
 
 namespace XFiler.YandexDisk.Client.Http;
 
-internal abstract partial class DiskClientBase(ApiContext apiContext)
+internal abstract class DiskClientBase(ApiContext context)
 {
-    private readonly IHttpClient _httpClient =
-        apiContext.HttpClient ?? throw new ArgumentNullException(nameof(apiContext.HttpClient));
+    private static readonly ProductInfoHeaderValue UserAgent = new(
+        "XFiler.YandexDisk.Client",
+        typeof(DiskClientBase).Assembly.GetName().Version?.ToString(3) ?? "0.0.0");
 
-    protected readonly ILogSaver? _logSaver = apiContext.LogSaver;
-    private readonly Uri _baseUrl = apiContext.BaseUrl ?? throw new ArgumentNullException(nameof(apiContext.BaseUrl));
+    private static readonly MediaTypeHeaderValue JsonMediaType = new("application/json") { CharSet = "utf-8" };
 
+    private protected ApiContext Context { get; } = context;
 
-    protected Task<T?> GetAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        CancellationToken cancellationToken)
-        where T : new()
+    private protected Uri ApiUrl(string relativeUrl, Query? query = null) =>
+        new(Context.BaseUrl, query is null ? relativeUrl : relativeUrl + query);
+
+    /// <summary>
+    /// Calls a JSON endpoint. Returns null when the response has no body (204 No Content).
+    /// </summary>
+    private protected async Task<T?> SendApiAsync<T>(HttpMethod method, Uri url, JsonTypeInfo<T> responseType,
+        CancellationToken cancellationToken, byte[]? jsonBody = null)
+        where T : ProtocolObjectResponse
     {
-        ArgumentNullException.ThrowIfNull(relativeUrl);
+        using HttpRequestMessage request = CreateRequest(method, url);
 
-        Uri url = GetUrl(relativeUrl, queryRequest);
-
-        var requestMessage = new HttpRequestMessage(HttpMethod.Get, url);
-
-        return SendAsync(jsonTypeInfo, requestMessage, cancellationToken);
-    }
-
-
-    protected Task<T?> PostAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        CancellationToken cancellationToken)
-        where T : new()
-    {
-        return RequestAsync(jsonTypeInfo, relativeUrl, queryRequest, requestJsonContent: null, HttpMethod.Post,
-            cancellationToken);
-    }
-
-
-    protected Task<T?> PutAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        CancellationToken cancellationToken)
-        where T : new()
-    {
-        return RequestAsync(jsonTypeInfo, relativeUrl, queryRequest, requestJsonContent: null, HttpMethod.Put,
-            cancellationToken);
-    }
-
-
-    protected Task<T?> DeleteAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        CancellationToken cancellationToken)
-        where T : new()
-    {
-        return RequestAsync(jsonTypeInfo, relativeUrl, queryRequest, requestJsonContent: null, HttpMethod.Delete,
-            cancellationToken);
-    }
-
-
-    protected Task<T?> PatchAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        string? requestJsonContent, CancellationToken cancellationToken) where T : new()
-    {
-        return RequestAsync(jsonTypeInfo, relativeUrl, queryRequest, requestJsonContent, new HttpMethod("PATCH"),
-            cancellationToken);
-    }
-
-
-    protected async Task<T?> SendAsync<T>(JsonTypeInfo<T> jsonTypeInfo, HttpRequestMessage request,
-        CancellationToken cancellationToken)
-        where T : new()
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        HttpResponseMessage responseMessage = await SendAsyncImpl(request, cancellationToken).ConfigureAwait(false);
-
-        string? json = responseMessage.StatusCode != HttpStatusCode.NoContent
-            ? await responseMessage.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-
-        var result = json != null ? DeserializeResponse(json, jsonTypeInfo) : default;
-
-        //If response is ProtocolObjectResponse,
-        //add HttpStatusCode to response
-        if (result is ProtocolObjectResponse protocolObject)
+        if (jsonBody is not null)
         {
-            protocolObject.HttpStatusCode = responseMessage.StatusCode;
+            request.Content = new ByteArrayContent(jsonBody);
+            request.Content.Headers.ContentType = JsonMediaType;
         }
 
-        return result;
-    }
+        RequestLogger? log = RequestLogger.Start(Context.LogSaver, request, jsonBody);
 
-
-    protected async Task<HttpResponseMessage> SendAsyncImpl(HttpRequestMessage request,
-        CancellationToken cancellationToken,
-        HttpCompletionOption completionMode = HttpCompletionOption.ResponseContentRead)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        using (ILogger logger = LoggerFactory.GetLogger(_logSaver))
-        {
-            await logger.SetRequestAsync(request, ignoreBody: false).ConfigureAwait(false);
-
-            try
-            {
-                HttpResponseMessage response =
-                    await _httpClient.SendAsync(request, cancellationToken, completionMode).ConfigureAwait(false);
-
-                await logger.SetResponseAsync(response, completionMode).ConfigureAwait(false);
-
-                await EnsureSuccessStatusCode(response).ConfigureAwait(false);
-
-                logger.EndWithSuccess();
-
-                return response;
-            }
-            catch (Exception e)
-            {
-                logger.EndWithError(e);
-
-                throw;
-            }
-        }
-    }
-
-
-    private Uri GetUrl(string relativeUrl, string? queryRequest = null)
-    {
-        var uriBuilder = new UriBuilder(_baseUrl);
-        uriBuilder.Path += relativeUrl ?? throw new ArgumentNullException(nameof(relativeUrl));
-
-        if (queryRequest is not null)
-        {
-            uriBuilder.Query = queryRequest;
-        }
-
-        return uriBuilder.Uri;
-    }
-
-
-    private async Task<T?> RequestAsync<T>(JsonTypeInfo<T> jsonTypeInfo, string relativeUrl, string? queryRequest,
-        string? requestJsonContent, HttpMethod httpMethod, CancellationToken cancellationToken) where T : new()
-    {
-        Uri url = GetUrl(relativeUrl, queryRequest);
-
-        HttpContent? content = !string.IsNullOrWhiteSpace(requestJsonContent)
-            ? new StringContent(requestJsonContent, Encoding.UTF8, "application/json")
-            : null;
-
-        var requestMessage = new HttpRequestMessage(httpMethod, url) {Content = content};
-
-        return await SendAsync(jsonTypeInfo, requestMessage, cancellationToken);
-    }
-
-
-    protected async Task EnsureSuccessStatusCode(HttpResponseMessage response)
-    {
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await TryGetErrorDescriptionAsync(response).ConfigureAwait(false);
-
-            response.Content?.Dispose();
-
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            {
-                throw new NotAuthorizedException(response.ReasonPhrase, error);
-            }
-
-            throw new YandexApiException(response.StatusCode, response.ReasonPhrase, error);
-        }
-    }
-
-
-    private async Task<ErrorDescription?> TryGetErrorDescriptionAsync(HttpResponseMessage response)
-    {
-        try
-        {
-            return response.Content != null
-                ? JsonSerializer.Deserialize(await response.Content.ReadAsStringAsync().ConfigureAwait(false),
-                    ErrorDescriptionJsonContext.Default.ErrorDescription)
-                : null;
-        }
-        catch (SerializationException) //unexpected data in content
-        {
-            return null;
-        }
-    }
-
-
-    private static T DeserializeResponse<T>(string? json, JsonTypeInfo<T> typeInfo) where T : new()
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            throw new Exception($"{nameof(DiskClientBase)}.{nameof(DeserializeResponse)} - response is null");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Context.ApiTimeout);
 
         try
         {
-            T result;
+            using HttpResponseMessage response = await Context.HttpClient
+                .SendAsync(request, timeout.Token, HttpCompletionOption.ResponseContentRead)
+                .ConfigureAwait(false);
 
-            //If response body is null but ProtocolObjectResponse was requested, 
-            //create empty object
-            if (string.IsNullOrWhiteSpace(json) && typeof(ProtocolObjectResponse).IsAssignableFrom(typeof(T)))
-            {
-                result = new T();
-            }
-            else
-            {
-                result = JsonSerializer.Deserialize(json, typeInfo)
-                         ?? throw new Exception(
-                             $"{nameof(DiskClientBase)}.{nameof(DeserializeResponse)} - response is null");
-            }
+            // API bodies are small: one buffer, deserialized as UTF-8 with no string in between.
+            byte[] body = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+
+            log?.SetResponse(response, body);
+
+            if (!response.IsSuccessStatusCode)
+                throw CreateException(response, body);
+
+            T? result = body.Length == 0 ? null : JsonSerializer.Deserialize(body, responseType);
+
+            if (result is not null)
+                result.HttpStatusCode = response.StatusCode;
+
+            log?.Success();
 
             return result;
         }
+        catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested)
+        {
+            var timeoutException = new TimeoutException(
+                $"Yandex Disk API did not respond within {Context.ApiTimeout.TotalSeconds:0} s: {method} {url}", e);
+
+            log?.Fail(timeoutException);
+
+            throw timeoutException;
+        }
         catch (Exception e)
         {
-            throw new Exception($"{nameof(DiskClientBase)}.{nameof(DeserializeResponse)} - {e}");
+            log?.Fail(e);
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Calls a JSON endpoint that always answers with a body.
+    /// </summary>
+    private protected async Task<T> SendApiRequiredAsync<T>(HttpMethod method, Uri url, JsonTypeInfo<T> responseType,
+        CancellationToken cancellationToken, byte[]? jsonBody = null)
+        where T : ProtocolObjectResponse
+    {
+        return await SendApiAsync(method, url, responseType, cancellationToken, jsonBody).ConfigureAwait(false)
+               ?? throw new InvalidOperationException($"Yandex Disk API returned an empty response: {method} {url}");
+    }
+
+    /// <summary>
+    /// Sends a file transfer request. The caller owns the returned response.
+    /// Bodies are not buffered or logged.
+    /// </summary>
+    private protected async Task<HttpResponseMessage> SendTransferAsync(HttpRequestMessage request,
+        HttpCompletionOption completionOption, CancellationToken cancellationToken)
+    {
+        RequestLogger? log = RequestLogger.Start(Context.LogSaver, request);
+
+        try
+        {
+            HttpResponseMessage response = await Context.HttpClient
+                .SendAsync(request, cancellationToken, completionOption)
+                .ConfigureAwait(false);
+
+            log?.SetResponse(response, body: null);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                using (response)
+                {
+                    byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+
+                    throw CreateException(response, body);
+                }
+            }
+
+            log?.Success();
+
+            return response;
+        }
+        catch (Exception e)
+        {
+            log?.Fail(e);
+
+            throw;
+        }
+    }
+
+    private protected HttpRequestMessage CreateRequest(HttpMethod method, Uri url)
+    {
+        var request = new HttpRequestMessage(method, url);
+
+        request.Headers.Authorization = Context.Authorization;
+        request.Headers.UserAgent.Add(UserAgent);
+
+        return request;
+    }
+
+    private protected HttpRequestMessage CreateRequest(Link link) =>
+        CreateRequest(new HttpMethod(link.Method), new Uri(link.Href));
+
+    private static YandexApiException CreateException(HttpResponseMessage response, byte[] body)
+    {
+        ErrorDescription? error = TryReadError(body);
+
+        return response.StatusCode == HttpStatusCode.Unauthorized
+            ? new NotAuthorizedException(response.StatusCode, response.ReasonPhrase, error)
+            : new YandexApiException(response.StatusCode, response.ReasonPhrase, error);
+    }
+
+    /// <summary>Error bodies may be HTML from a proxy or empty; the status code still matters then.</summary>
+    private static ErrorDescription? TryReadError(byte[] body)
+    {
+        if (body.Length == 0)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize(body, YandexDiskJsonContext.Default.ErrorDescription);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 }

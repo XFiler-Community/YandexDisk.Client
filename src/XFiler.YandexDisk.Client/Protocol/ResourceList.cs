@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace XFiler.YandexDisk.Client.Protocol;
@@ -12,27 +12,27 @@ public class ResourceList : ProtocolObjectResponse
     /// Поле, по которому отсортирован список.
     /// </summary>
     [JsonPropertyName("sort")]
-    public string Sort { get; set; }
+    public string? Sort { get; set; }
 
     /// <summary>
     /// Ключ опубликованной папки, в которой содержатся ресурсы из данного списка.
     /// Включается только в ответ на запрос метаинформации о публичной папке.
     /// </summary>
     [JsonPropertyName("public_key")]
-    public string PublicKey { get; set; }
+    public string? PublicKey { get; set; }
 
     /// <summary>
     /// Массив ресурсов (Resource), содержащихся в папке.
     /// </summary>
     [JsonPropertyName("items")]
-    public List<Resource> Items { get; set; }
+    public List<Resource> Items { get; set; } = [];
 
     /// <summary>
     /// Путь к папке, чье содержимое описывается в данном объекте ResourceList.
     /// Для публичной папки значение атрибута всегда равно «/».
     /// </summary>
     [JsonPropertyName("path")]
-    public string Path { get; set; }
+    public string Path { get; set; } = "";
 
     /// <summary>
     /// Максимальное количество элементов в массиве items, заданное в запросе.

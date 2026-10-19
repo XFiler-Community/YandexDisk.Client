@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using XFiler.YandexDisk.Client.Clients;
@@ -9,90 +10,95 @@ using XFiler.YandexDisk.Client.Protocol;
 
 namespace XFiler.YandexDisk.Client.Http.Clients;
 
-internal class MetaInfoClient(ApiContext apiContext) : DiskClientBase(apiContext), IMetaInfoClient
+internal sealed class MetaInfoClient(ApiContext context) : DiskClientBase(context), IMetaInfoClient
 {
-    public Task<Disk> GetDiskInfoAsync(CancellationToken cancellationToken = default)
-    {
-        return GetAsync(DiskJsonContext.Default.Disk, "", null, cancellationToken);
-    }
+    private static readonly HttpMethod Patch = new("PATCH");
 
-    public Task<Resource> GetInfoAsync(ResourceRequest request, CancellationToken cancellationToken = default)
-    {
-        string? query = GetQuery(
-            key1:"path", request.Path,
-            key2: "limit", request.Limit?.ToString(), 
-            key3: "offset", request.Offset?.ToString(), 
-            key4: "sort", request.Sort);
-        
-        return GetAsync(ResourceJsonContext.Default.Resource, "resources", query, cancellationToken);
-    }
+    public Task<Disk> GetDiskInfoAsync(CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Get, ApiUrl(""), YandexDiskJsonContext.Default.Disk, cancellationToken);
 
-    public Task<Resource> GetTrashInfoAsync(ResourceRequest request, CancellationToken cancellationToken = default)
-    {
-        string? query = GetQuery(
-            key1:"path", request.Path,
-            key2: "limit", request.Limit?.ToString(), 
-            key3: "offset", request.Offset?.ToString(), 
-            key4: "sort", request.Sort);
-        
-        return GetAsync(ResourceJsonContext.Default.Resource, "trash/resources", query, cancellationToken);
-    }
+    public Task<Resource> GetInfoAsync(ResourceRequest request, CancellationToken cancellationToken = default) =>
+        GetResourceAsync("resources", request, cancellationToken);
+
+    public Task<Resource> GetTrashInfoAsync(ResourceRequest request, CancellationToken cancellationToken = default) =>
+        GetResourceAsync("trash/resources", request, cancellationToken);
 
     public Task<FilesResourceList> GetFilesInfoAsync(FilesResourceRequest request, CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery(
-            key1: "media_type", MediaTypesToString(request.MediaType), 
-            key2: "limit", request.Limit?.ToString(), 
-            key3: "offset", request.Offset?.ToString());
-        
-        return GetAsync(FilesResourceListJsonContext.Default.FilesResourceList, "resources/files", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("media_type", MediaTypes(request.MediaType))
+            .Add("limit", request.Limit)
+            .Add("offset", request.Offset);
+
+        return SendApiRequiredAsync(HttpMethod.Get, ApiUrl("resources/files", query),
+            YandexDiskJsonContext.Default.FilesResourceList, cancellationToken);
     }
 
-    public Task<LastUploadedResourceList> GetLastUploadedInfoAsync(LastUploadedResourceRequest request, CancellationToken cancellationToken = default)
+    public Task<LastUploadedResourceList> GetLastUploadedInfoAsync(LastUploadedResourceRequest request,
+        CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery(
-            key1: "media_type", MediaTypesToString(request.MediaType),
-            key2: "limit", request.Limit?.ToString());
-        
-        return GetAsync(LastUploadedResourceListJsonContext.Default.LastUploadedResourceList, "resources/last-uploaded", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("media_type", MediaTypes(request.MediaType))
+            .Add("limit", request.Limit);
+
+        return SendApiRequiredAsync(HttpMethod.Get, ApiUrl("resources/last-uploaded", query),
+            YandexDiskJsonContext.Default.LastUploadedResourceList, cancellationToken);
     }
 
-    public Task<Resource> AppendCustomProperties(string path, IDictionary<string, string> customProperties, CancellationToken cancellationToken = default)
+    public Task<Resource> AppendCustomPropertiesAsync(string path, IDictionary<string, string?> properties,
+        CancellationToken cancellationToken = default)
     {
-        // new { customProperties }
-        string request = JsonSerializer.Serialize(
-            new CustomPropertiesDto { CustomProperties = customProperties },
-            CustomPropertiesJsonContext.Default.CustomPropertiesDto);
+        ArgumentNullException.ThrowIfNull(properties);
 
-        string? query = GetQuery("path", path);
+        byte[] body = JsonSerializer.SerializeToUtf8Bytes(
+            new CustomPropertiesRequest { CustomProperties = properties },
+            YandexDiskJsonContext.Default.CustomPropertiesRequest);
 
-        return PatchAsync(ResourceJsonContext.Default.Resource, "resources", query, request, cancellationToken);
+        return SendApiRequiredAsync(Patch, ApiUrl("resources", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Resource, cancellationToken, body);
     }
 
-    public Task<Link> PublishFolderAsync(string path, CancellationToken cancellationToken = default)
+    public Task<Link> PublishAsync(string path, CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Put, ApiUrl("resources/publish", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
+
+    public Task<Link> UnpublishAsync(string path, CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Put, ApiUrl("resources/unpublish", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
+
+    private Task<Resource> GetResourceAsync(string relativeUrl, ResourceRequest request, CancellationToken cancellationToken)
     {
-        string? query = GetQuery("path", path);
+        ArgumentNullException.ThrowIfNull(request);
 
-        return PutAsync(LinkJsonContext.Default.Link, "resources/publish", query, cancellationToken);
+        Query query = new Query()
+            .Add("path", request.Path)
+            .Add("limit", request.Limit)
+            .Add("offset", request.Offset)
+            .Add("sort", request.Sort);
+
+        return SendApiRequiredAsync(HttpMethod.Get, ApiUrl(relativeUrl, query),
+            YandexDiskJsonContext.Default.Resource, cancellationToken);
     }
 
-    public Task<Link> UnpublishFolderAsync(string path, CancellationToken cancellationToken = default)
+    private static string? MediaTypes(MediaType[]? mediaTypes)
     {
-        string? query = GetQuery("path", path);
+        if (mediaTypes is null || mediaTypes.Length == 0)
+            return null;
 
-        return PutAsync(LinkJsonContext.Default.Link, "resources/unpublish", query, cancellationToken);
+        var builder = new StringBuilder();
+
+        foreach (MediaType mediaType in mediaTypes)
+        {
+            if (builder.Length > 0)
+                builder.Append(',');
+
+            builder.Append(mediaType.ToApiValue());
+        }
+
+        return builder.ToString();
     }
-
-
-    private static string? MediaTypesToString(MediaType[]? mediaTypes) => mediaTypes is not null 
-        ? string.Join(",", mediaTypes.Select(t => t.GetName().ToLower())) : null;
 }
-
-internal class CustomPropertiesDto
-{
-    [JsonPropertyName("custom_properties")]
-    public IDictionary<string, string> CustomProperties { get; set; }
-}
-
-[JsonSerializable(typeof(CustomPropertiesDto))]
-internal partial class CustomPropertiesJsonContext : JsonSerializerContext;

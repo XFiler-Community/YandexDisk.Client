@@ -2,8 +2,16 @@
 
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
-        <LangVersion>preview</LangVersion>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
         <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- Not every protocol member carries an XML comment yet -->
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageId>XFiler.YandexDisk.Client</PackageId>
         <Version>9.0.0</Version>
         <Product>Yandex Disk RestAPI Client for .NET</Product>
         <Description>.NET library wrapper of Yandex Desktop RestAPI.
@@ -15,27 +23,18 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/XFiler-Community/YandexDisk.Client</PackageProjectUrl>
         <PackageIcon>icon.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <Copyright>Copyright (c) 2026 XFiler Community, 2023-2026 Egor Zheludkov, 2015 Yuriy Nagaev</Copyright>
         <PackageTags>yandex, disk, yandex-disk, cloud disk, client, aot</PackageTags>
         <RepositoryUrl>https://github.com/XFiler-Community/YandexDisk.Client.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Nullable>enable</Nullable>
-        <PackageId>XFiler.YandexDisk.Client</PackageId>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Credfeto.Enumeration.Source.Generation" Version="1.1.1.168">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Compile Update="Http\DiskClientBase.Query.cs">
-            <DependentUpon>DiskClientBase.cs</DependentUpon>
-        </Compile>
+        <InternalsVisibleTo Include="YandexDisk.Client.Tests" />
     </ItemGroup>
 
     <ItemGroup>

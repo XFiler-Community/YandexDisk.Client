@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -39,10 +39,6 @@ public enum OperationStatus
     InProgress,
 }
 
-[JsonSerializable(typeof(Operation))]
-[JsonSourceGenerationOptions(UseStringEnumConverter = true)]
-internal partial class OperationJsonContext : JsonSerializerContext;
-
 internal class OperationJsonConverter : JsonConverter<OperationStatus>
 {
     public override OperationStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -61,6 +57,11 @@ internal class OperationJsonConverter : JsonConverter<OperationStatus>
 
     public override void Write(Utf8JsonWriter writer, OperationStatus value, JsonSerializerOptions options)
     {
-        throw new NotImplementedException();
+        writer.WriteStringValue(value switch
+        {
+            OperationStatus.Success => "success",
+            OperationStatus.InProgress => "in-progress",
+            _ => "failure"
+        });
     }
 }

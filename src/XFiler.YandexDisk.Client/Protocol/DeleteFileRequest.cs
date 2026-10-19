@@ -1,5 +1,3 @@
-﻿using System.Text.Json.Serialization;
-
 namespace XFiler.YandexDisk.Client.Protocol;
 
 
@@ -11,7 +9,6 @@ public class DeleteFileRequest
     /// <summary>
     /// Путь к новому положению ресурса. Например, %2Fbar%2Fphoto.png.
     /// </summary>
-    [JsonPropertyName("path")]
     public required string Path { get; init; }
 
     /// <summary>
@@ -19,6 +16,5 @@ public class DeleteFileRequest
     /// false — удаляемый файл или папка перемещаются в Корзину(используется по умолчанию).
     /// true — файл или папка удаляются без помещения в Корзину.
     /// </summary>
-    [JsonPropertyName("permanently")]
     public bool Permanently { get; set; }
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace XFiler.YandexDisk.Client.Protocol;
@@ -12,7 +12,7 @@ public class FilesResourceList : ProtocolObjectResponse
     /// Массив ресурсов (Resource), содержащихся в папке.
     /// </summary>
     [JsonPropertyName("items")]
-    public List<Resource> Items { get; set; }
+    public List<Resource> Items { get; set; } = [];
 
     /// <summary>
     /// Максимальное количество элементов в массиве items, заданное в запросе.
@@ -26,7 +26,3 @@ public class FilesResourceList : ProtocolObjectResponse
     [JsonPropertyName("offset")]
     public int Offset { get; set; }
 }
-
-[JsonSerializable(typeof(FilesResourceList))]
-[JsonSourceGenerationOptions()]
-internal partial class FilesResourceListJsonContext : JsonSerializerContext;

@@ -18,11 +18,8 @@ namespace YandexDisk.Client.CLI
         public async Task ExecuteAsync(DownloadOptions options) {
             Console.WriteLine($"Receiving resource info from yandex.disk...");
 
+            // Throws YandexApiException (404) when the resource does not exist.
             var resource = await DiskClient.MetaInfo.GetInfoAsync(new ResourceRequest() { Path = options.Source }).ConfigureAwait(false);
-            if (resource == null)
-            {
-                throw new Exception($"Resource {options.Source} does not exist on disk");
-            }
 
             Console.WriteLine($"Receiving download link from yandex.disk...");
 
@@ -32,7 +29,7 @@ namespace YandexDisk.Client.CLI
 
             var targetDirectory = Path.Combine(Directory.GetCurrentDirectory(), options.Target);
 
-            using (var downloadStream = await DiskClient.Files.DownloadAsync(link).ConfigureAwait(false))
+            await using (var downloadStream = await DiskClient.Files.DownloadAsync(link).ConfigureAwait(false))
             {
                 switch (resource.Type)
                 {

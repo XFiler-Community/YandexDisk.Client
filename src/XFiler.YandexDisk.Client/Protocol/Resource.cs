@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -14,27 +14,27 @@ public class Resource : ProtocolObjectResponse
     /// Включается в ответ только если указанный файл или папка опубликован.
     /// </summary>
     [JsonPropertyName("public_key")]
-    public string PublicKey { get; set; }
+    public string? PublicKey { get; set; }
 
     /// <summary>
     /// Имя ресурса.
     /// </summary>
     [JsonPropertyName("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = "";
 
     /// <summary>
     /// Ссылка на опубликованный ресурс.
     /// Включается в ответ только если указанный файл или папка опубликован.
     /// </summary>
     [JsonPropertyName("public_url")]
-    public string PublicUrl { get; set; }
+    public string? PublicUrl { get; set; }
 
     /// <summary>
     /// Путь к ресурсу до перемещения в Корзину.
     /// Включается в ответ только для запроса метаинформации о ресурсе в Корзине.
     /// </summary>
     [JsonPropertyName("origin_path")]
-    public string OriginPath { get; set; }
+    public string? OriginPath { get; set; }
 
     /// <summary>
     /// Полный путь к ресурсу на Диске.
@@ -42,33 +42,69 @@ public class Resource : ProtocolObjectResponse
     /// Для ресурса, находящегося в Корзине, к атрибуту может быть добавлен уникальный идентификатор(например, trash:/foo_1408546879). С помощью этого идентификатора ресурс можно отличить от других удаленных ресурсов с тем же именем.
     /// </summary>
     [JsonPropertyName("path")]
-    public string Path { get; set; }
+    public string Path { get; set; } = "";
 
     /// <summary>
     /// Ссылка на уменьшенное изображение из файла (превью). Включается в ответ только для файлов поддерживаемых графических форматов.
     /// </summary>
     /// <remarks>Запросить превью можно только с OAuth-токеном пользователя, имеющего доступ к самому файлу.</remarks>
     [JsonPropertyName("preview")]
-    public string Preview { get; set; }
+    public string? Preview { get; set; }
 
     /// <summary>
     /// MD5-хэш файла.
     /// </summary>
     [JsonPropertyName("md5")]
-    public string Md5 { get; set; }
+    public string? Md5 { get; set; }
+
+    /// <summary>
+    /// SHA256-хэш файла.
+    /// </summary>
+    [JsonPropertyName("sha256")]
+    public string? Sha256 { get; set; }
+
+    /// <summary>
+    /// Прямая ссылка на скачивание файла, без отдельного запроса resources/download.
+    /// </summary>
+    [JsonPropertyName("file")]
+    public string? File { get; set; }
+
+    /// <summary>
+    /// Идентификатор ресурса.
+    /// </summary>
+    [JsonPropertyName("resource_id")]
+    public string? ResourceId { get; set; }
+
+    /// <summary>
+    /// Ревизия Диска, в которой ресурс изменялся последний раз.
+    /// </summary>
+    [JsonPropertyName("revision")]
+    public long? Revision { get; set; }
+
+    /// <summary>
+    /// Тип медиаданных файла, определённый Диском: image, video, document и т. д.
+    /// </summary>
+    [JsonPropertyName("media_type")]
+    public string? MediaType { get; set; }
+
+    /// <summary>
+    /// Статус проверки антивирусом: clean, infected и т. д.
+    /// </summary>
+    [JsonPropertyName("antivirus_status")]
+    public string? AntivirusStatus { get; set; }
 
     /// <summary>
     /// Тип ресурса:
     /// </summary>
     [JsonPropertyName("type")]
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter<ResourceType>))]
     public ResourceType Type { get; set; }
 
     /// <summary>
     /// MIME-тип файла.
     /// </summary>
     [JsonPropertyName("mime_type")]
-    public string MimeType { get; set; }
+    public string? MimeType { get; set; }
 
     /// <summary>
     /// Размер файла.
@@ -93,14 +129,14 @@ public class Resource : ProtocolObjectResponse
     /// Содержит только ключи вида имя:значение (объекты или массивы содержать не может).
     /// </summary>
     [JsonPropertyName("custom_properties")]
-    public Dictionary<string, string> CustomProperties { get; set; }
+    public Dictionary<string, string>? CustomProperties { get; set; }
 
     /// <summary>
     /// Ресурсы, непосредственно содержащиеся в папке (содержит объект ResourceList).
     /// Включается в ответ только при запросе метаинформации о папке.
     /// </summary>
     [JsonPropertyName("_embedded")]
-    public ResourceList Embedded { get; set; }
+    public ResourceList? Embedded { get; set; }
 }
 
 /// <summary>
@@ -114,11 +150,3 @@ public enum ResourceType : byte
     /// <summary>Файл</summary>
     File
 }
-
-
-[JsonSerializable(typeof(Resource))]
-[JsonSourceGenerationOptions(
-    UseStringEnumConverter = true, 
-    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-    AllowTrailingCommas = true)]
-internal partial class ResourceJsonContext : JsonSerializerContext;

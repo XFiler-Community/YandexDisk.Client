@@ -6,95 +6,122 @@ using XFiler.YandexDisk.Client.Protocol;
 
 namespace XFiler.YandexDisk.Client.Clients;
 
-
 /// <summary>
-/// Extended file commands
+/// Commands that wait until an asynchronous operation on Yandex's side is done.
 /// </summary>
+/// <remarks>
+/// The status is polled with a growing interval: 250 ms, then doubled up to
+/// <c>pollInterval</c> (3 s by default), so short operations finish fast and long ones
+/// do not burn the API quota. A failed operation throws <see cref="YandexOperationFailedException"/>,
+/// cancellation throws <see cref="OperationCanceledException"/>.
+/// </remarks>
 public static class CommandsClientExtensions
 {
+    private static readonly TimeSpan FirstPollDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(3);
+
     /// <summary>
-    /// Default pull period for waiting operation.
+    /// Wait until the operation from a 202 Accepted response is done.
     /// </summary>
-    public static TimeSpan DefaultPullPeriod = TimeSpan.FromSeconds(3);
-
-    private static async Task WaitOperationAsync(this ICommandsClient client, Link operationLink, CancellationToken cancellationToken, TimeSpan? pullPeriod)
+    public static async Task WaitForOperationAsync(this ICommandsClient client, Link operation,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        if (pullPeriod == null)
-        {
-            pullPeriod = DefaultPullPeriod;
-        }
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(operation);
 
-        Operation operation;
-        do
+        TimeSpan maxDelay = pollInterval ?? DefaultPollInterval;
+
+        if (maxDelay <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(pollInterval), pollInterval, "Poll interval must be positive.");
+
+        TimeSpan delay = FirstPollDelay < maxDelay ? FirstPollDelay : maxDelay;
+
+        while (true)
         {
-            Thread.Sleep(pullPeriod.Value);
-            operation = await client.GetOperationStatus(operationLink, cancellationToken).ConfigureAwait(false);
-        } while (operation.Status == OperationStatus.InProgress &&
-                 !cancellationToken.IsCancellationRequested);
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+
+            Operation status = await client.GetOperationStatusAsync(operation, cancellationToken).ConfigureAwait(false);
+
+            switch (status.Status)
+            {
+                case OperationStatus.Success:
+                    return;
+                case OperationStatus.Failure:
+                    throw new YandexOperationFailedException(operation);
+            }
+
+            delay = delay * 2 < maxDelay ? delay * 2 : maxDelay;
+        }
     }
 
     /// <summary>
     /// Copy file or folder on Disk from one path to another and wait until operation is done
     /// </summary>
-    public static async Task CopyAndWaitAsync(this ICommandsClient client, CopyFileRequest request, CancellationToken cancellationToken = default, TimeSpan? pullPeriod = null)
+    public static async Task CopyAndWaitAsync(this ICommandsClient client, CopyFileRequest request,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        var link = await client.CopyAsync(request, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(client);
 
-        if (link.HttpStatusCode == HttpStatusCode.Accepted)
-        {
-            await client.WaitOperationAsync(link, cancellationToken, pullPeriod).ConfigureAwait(false);
-        }
+        Link link = await client.CopyAsync(request, cancellationToken).ConfigureAwait(false);
+
+        await client.WaitIfAcceptedAsync(link, cancellationToken, pollInterval).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Move file or folder on Disk from one path to another and wait until operation is done
     /// </summary>
-    public static async Task MoveAndWaitAsync(this ICommandsClient client, MoveFileRequest request, CancellationToken cancellationToken = default, TimeSpan? pullPeriod = null)
+    public static async Task MoveAndWaitAsync(this ICommandsClient client, MoveFileRequest request,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        var link = await client.MoveAsync(request, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(client);
 
-        if (link.HttpStatusCode == HttpStatusCode.Accepted)
-        {
-            await client.WaitOperationAsync(link, cancellationToken, pullPeriod).ConfigureAwait(false);
-        }
+        Link link = await client.MoveAsync(request, cancellationToken).ConfigureAwait(false);
+
+        await client.WaitIfAcceptedAsync(link, cancellationToken, pollInterval).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Delete file or folder on Disk and wait until operation is done
     /// </summary>
-    public static async Task DeleteAndWaitAsync(this ICommandsClient client, DeleteFileRequest request, CancellationToken cancellationToken = default, TimeSpan? pullPeriod = null)
+    public static async Task DeleteAndWaitAsync(this ICommandsClient client, DeleteFileRequest request,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        var link = await client.DeleteAsync(request, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(client);
 
-        if (link.HttpStatusCode == HttpStatusCode.Accepted)
-        {
-            await client.WaitOperationAsync(link, cancellationToken, pullPeriod).ConfigureAwait(false);
-        }
+        Link? link = await client.DeleteAsync(request, cancellationToken).ConfigureAwait(false);
+
+        await client.WaitIfAcceptedAsync(link, cancellationToken, pollInterval).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Empty trash
+    /// Empty trash (or delete <paramref name="path"/> from it) and wait until operation is done
     /// </summary>
-    public static async Task EmptyTrashAndWaitAsyncAsync(this ICommandsClient client, string path, CancellationToken cancellationToken = default, TimeSpan? pullPeriod = null)
+    public static async Task EmptyTrashAndWaitAsync(this ICommandsClient client, string? path = null,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        var link = await client.EmptyTrashAsync(path, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(client);
 
-        if (link.HttpStatusCode == HttpStatusCode.Accepted)
-        {
-            await client.WaitOperationAsync(link, cancellationToken, pullPeriod).ConfigureAwait(false);
-        }
+        Link? link = await client.EmptyTrashAsync(path, cancellationToken).ConfigureAwait(false);
+
+        await client.WaitIfAcceptedAsync(link, cancellationToken, pollInterval).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Restore files from trash
+    /// Restore files from trash and wait until operation is done
     /// </summary>
-    public static async Task RestoreFromTrashAndWaitAsyncAsync(this ICommandsClient client, RestoreFromTrashRequest request, CancellationToken cancellationToken = default, TimeSpan? pullPeriod = null)
+    public static async Task RestoreFromTrashAndWaitAsync(this ICommandsClient client, RestoreFromTrashRequest request,
+        CancellationToken cancellationToken = default, TimeSpan? pollInterval = null)
     {
-        var link = await client.RestoreFromTrashAsync(request, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(client);
 
-        if (link.HttpStatusCode == HttpStatusCode.Accepted)
-        {
-            await client.WaitOperationAsync(link, cancellationToken, pullPeriod).ConfigureAwait(false);
-        }
+        Link link = await client.RestoreFromTrashAsync(request, cancellationToken).ConfigureAwait(false);
+
+        await client.WaitIfAcceptedAsync(link, cancellationToken, pollInterval).ConfigureAwait(false);
     }
+
+    private static Task WaitIfAcceptedAsync(this ICommandsClient client, Link? link,
+        CancellationToken cancellationToken, TimeSpan? pollInterval) =>
+        link is { HttpStatusCode: HttpStatusCode.Accepted }
+            ? client.WaitForOperationAsync(link, cancellationToken, pollInterval)
+            : Task.CompletedTask;
 }

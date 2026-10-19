@@ -1,4 +1,4 @@
-﻿namespace XFiler.YandexDisk.Client.Protocol;
+namespace XFiler.YandexDisk.Client.Protocol;
 
 /// <summary>
 /// Возможные типы медиаданных
@@ -99,4 +99,32 @@ public enum MediaType
     /// различные файлы, используемые браузерами и сайтами (CSS, сертификаты, файлы закладок).
     /// </summary>
     Web
+}
+
+internal static class MediaTypeExtensions
+{
+    /// <summary>Value of the media_type query parameter. Culture-independent, unlike ToString().ToLower().</summary>
+    public static string ToApiValue(this MediaType mediaType) => mediaType switch
+    {
+        MediaType.Audio => "audio",
+        MediaType.Backup => "backup",
+        MediaType.Book => "book",
+        MediaType.Compressed => "compressed",
+        MediaType.Data => "data",
+        MediaType.Development => "development",
+        MediaType.Diskimage => "diskimage",
+        MediaType.Document => "document",
+        MediaType.Encoded => "encoded",
+        MediaType.Executable => "executable",
+        MediaType.Flash => "flash",
+        MediaType.Font => "font",
+        MediaType.Image => "image",
+        MediaType.Settings => "settings",
+        MediaType.Spreadsheet => "spreadsheet",
+        MediaType.Text => "text",
+        MediaType.Unknown => "unknown",
+        MediaType.Video => "video",
+        MediaType.Web => "web",
+        _ => throw new System.ArgumentOutOfRangeException(nameof(mediaType), mediaType, null)
+    };
 }

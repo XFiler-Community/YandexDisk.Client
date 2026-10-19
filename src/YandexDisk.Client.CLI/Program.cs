@@ -6,20 +6,25 @@ using XFiler.YandexDisk.Client.Http;
 
 namespace YandexDisk.Client.CLI
 {
-    public class YandexDiskCliProgram
+    public static class YandexDiskCliProgram
     {
-        public static int Main(string[] args)
-        {
-            return new YandexDiskCliProgram().Run(args);
-        }
-
-        public int Run(string[] args)
+        public static async Task<int> Main(string[] args)
         {
             try
             {
-                var parseResult = Parser.Default.ParseArguments<UploadOptions, DownloadOptions>(args)
-                    .WithParsed<DownloadOptions>(Download)
-                    .WithParsed<UploadOptions>(Upload);
+                ParserResult<object> parseResult = Parser.Default.ParseArguments<UploadOptions, DownloadOptions>(args);
+
+                await parseResult.WithParsedAsync<DownloadOptions>(async options =>
+                {
+                    using DiskHttpApi disk = CreateDiskClient(options);
+                    await new Download(disk).ExecuteAsync(options);
+                });
+
+                await parseResult.WithParsedAsync<UploadOptions>(async options =>
+                {
+                    using DiskHttpApi disk = CreateDiskClient(options);
+                    await new Upload(disk).ExecuteAsync(options);
+                });
 
                 if (parseResult.Tag == ParserResultType.NotParsed)
                 {
@@ -28,15 +33,6 @@ namespace YandexDisk.Client.CLI
 
                 return 0;
             }
-            catch (AggregateException ex)
-            {
-                Console.Error.WriteLine(ex.Message);
-                foreach (var innerException in ex.InnerExceptions)
-                {
-                    Console.Error.WriteLine(innerException.Message);
-                }
-                return -1;
-            }
             catch (Exception ex)
             {
                 Console.Error.WriteLine(ex.Message);
@@ -44,27 +40,14 @@ namespace YandexDisk.Client.CLI
             }
         }
 
-        private void Upload(UploadOptions options)
+        private static DiskHttpApi CreateDiskClient(OptionsBase options)
         {
-            SyncAwait(new Upload(CreateDiskClient(options)).ExecuteAsync(options));
-        }
-
-        private void Download(DownloadOptions options)
-        {
-            SyncAwait(new Download(CreateDiskClient(options)).ExecuteAsync(options));
-        }
-
-        protected virtual DiskHttpApi CreateDiskClient(OptionsBase options) {
-            if (String.IsNullOrWhiteSpace(options.AccessToken)) {
-                throw new Exception("AccessToken is not defined.");
+            if (string.IsNullOrWhiteSpace(options.AccessToken))
+            {
+                throw new ArgumentException("AccessToken is not defined.");
             }
 
             return new DiskHttpApi(options.AccessToken);
-        }
-
-        private void SyncAwait(Task task)
-        {
-            task.Wait();
         }
     }
 }

@@ -4,117 +4,68 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using XFiler.YandexDisk.Client.Clients;
-using XFiler.YandexDisk.Client.Http.Progress;
 using XFiler.YandexDisk.Client.Protocol;
 
 namespace XFiler.YandexDisk.Client.Http.Clients;
 
-internal class FilesClient(ApiContext apiContext) : DiskClientBase(apiContext), IFilesClient
+internal sealed class FilesClient(ApiContext context) : DiskClientBase(context), IFilesClient
 {
-    public Task<Link> GetUploadLinkAsync(string path, bool overwrite, CancellationToken cancellationToken = default)
-    {
-        string? query = GetQuery("path", path, "overwrite", overwrite.ToString().ToLower());
+    public Task<Link> GetUploadLinkAsync(string path, bool overwrite, CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Get,
+            ApiUrl("resources/upload", new Query().Add("path", path).Add("overwrite", overwrite)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
 
-        return GetAsync(LinkJsonContext.Default.Link, "resources/upload", query, cancellationToken);
+    public Task UploadAsync(Link link, Stream file, CancellationToken cancellationToken = default) =>
+        UploadCoreAsync(link, new UploadContent(file, length: null, bytesSent: null), cancellationToken);
+
+    public Task UploadWithProgressAsync(Link link, Stream file, long fileSize, Action<double>? progressCallback,
+        CancellationToken cancellationToken = default)
+    {
+        Action<long>? bytesSent = progressCallback is null || fileSize <= 0
+            ? null
+            : sent => progressCallback((double)sent / fileSize);
+
+        return UploadCoreAsync(link, new UploadContent(file, fileSize > 0 ? fileSize : null, bytesSent), cancellationToken);
     }
 
-    public Task UploadAsync(Link link, Stream file, CancellationToken cancellationToken = default)
+    public Task<Link> GetDownloadLinkAsync(string path, CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Get, ApiUrl("resources/download", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
+
+    public async Task<Stream> DownloadAsync(Link link, CancellationToken cancellationToken = default) =>
+        (await DownloadFastAsync(link, cancellationToken).ConfigureAwait(false)).Stream;
+
+    public async Task<(Stream Stream, long Length)> DownloadFastAsync(Link link, CancellationToken cancellationToken = default)
     {
-        var url = new Uri(link.Href);
+        ArgumentNullException.ThrowIfNull(link);
 
-        var method = new HttpMethod(link.Method);
+        using HttpRequestMessage request = CreateRequest(link);
 
-        var content = new StreamContent(file);
+        // Headers only: the body is handed to the caller as a stream instead of being buffered.
+        HttpResponseMessage response = await SendTransferAsync(request, HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
 
-        var requestMessage = new HttpRequestMessage(method, url) { Content = content };
-
-        return SendAsyncImpl(requestMessage, cancellationToken);
-    }
-
-    public Task<Link> GetDownloadLinkAsync(string path, CancellationToken cancellationToken)
-    {
-        string? query = GetQuery("path", path);
-
-        return GetAsync(LinkJsonContext.Default.Link, "resources/download", query, cancellationToken);
-    }
-
-    public async Task<Stream> DownloadAsync(Link link, CancellationToken cancellationToken = default)
-    {
-        var url = new Uri(link.Href);
-
-        var method = new HttpMethod(link.Method);
-
-        var requestMessage = new HttpRequestMessage(method, url);
-
-        HttpResponseMessage responseMessage =
-            await SendAsyncImpl(requestMessage, cancellationToken).ConfigureAwait(false);
-
-        return await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-
-    public async Task<(Stream, long)> DownloadFastAsync(Link link, CancellationToken cancellationToken = default)
-    {
-        var url = new Uri(link.Href);
-
-        var method = new HttpMethod(link.Method);
-
-        var requestMessage = new HttpRequestMessage(method, url);
-
-        HttpResponseMessage responseMessage =
-            await SendAsyncImpl(requestMessage, cancellationToken, HttpCompletionOption.ResponseHeadersRead)
-                .ConfigureAwait(false);
-
-        long contentLength = responseMessage.Content.Headers.ContentLength ?? 0;
-
-        var stream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-
-        return (stream, contentLength);
-    }
-
-
-    public async Task UploadWithProgressAsync(Link link, Stream file, long fileSize, Action<double>? progressCallback, CancellationToken ct = default)
-    {
-        using (ILogger logger = LoggerFactory.GetLogger(_logSaver))
+        try
         {
-            try
-            {
-                var progress = new ProgressMessageHandler();
+            Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
 
-                progress.HttpSendProgress += (_, e) =>
-                {
-                    double progressPercentage = (double)e.BytesTransferred / fileSize;
-
-                    progressCallback?.Invoke(progressPercentage);
-                };
-
-                using var client = HttpClientFactory.Create(progress);
-
-                var url = new Uri(link.Href);
-
-                var method = new HttpMethod(link.Method);
-
-                var content = new StreamContent(file);
-
-                var requestMessage = new HttpRequestMessage(method, url) { Content = content };
-
-                await logger.SetRequestAsync(requestMessage, ignoreBody: true).ConfigureAwait(false);
-
-
-                var response = await client.SendAsync(requestMessage, ct).ConfigureAwait(false);
-
-                await logger.SetResponseAsync(response, HttpCompletionOption.ResponseContentRead).ConfigureAwait(false);
-
-                await EnsureSuccessStatusCode(response).ConfigureAwait(false);
-
-                logger.EndWithSuccess();
-            }
-            catch (Exception e)
-            {
-                logger.EndWithError(e);
-
-                throw;
-            }
+            return (stream, response.Content.Headers.ContentLength ?? 0);
         }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
+    }
+
+    private async Task UploadCoreAsync(Link link, UploadContent content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+
+        using HttpRequestMessage request = CreateRequest(link);
+        request.Content = content;
+
+        using HttpResponseMessage response = await SendTransferAsync(request, HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
     }
 }

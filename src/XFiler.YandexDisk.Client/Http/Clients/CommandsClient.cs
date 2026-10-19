@@ -7,65 +7,72 @@ using XFiler.YandexDisk.Client.Protocol;
 
 namespace XFiler.YandexDisk.Client.Http.Clients;
 
-internal class CommandsClient(ApiContext apiContext) : DiskClientBase(apiContext), ICommandsClient
+internal sealed class CommandsClient(ApiContext context) : DiskClientBase(context), ICommandsClient
 {
-    public Task<Link> CreateDictionaryAsync(string path, CancellationToken cancellationToken = default)
-    {
-        string? query = GetQuery("path", path);
+    public Task<Link> CreateDirectoryAsync(string path, CancellationToken cancellationToken = default) =>
+        SendApiRequiredAsync(HttpMethod.Put, ApiUrl("resources", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
 
-        return PutAsync(LinkJsonContext.Default.Link, "resources", query, cancellationToken);
-    }
-    
     public Task<Link> CopyAsync(CopyFileRequest request, CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery("from", request.From, "path", request.Path, "overwrite", request.Overwrite.ToString().ToLower());
-        
-        return PostAsync(LinkJsonContext.Default.Link, "resources/copy", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("from", request.From)
+            .Add("path", request.Path)
+            .Add("overwrite", request.Overwrite);
+
+        return SendApiRequiredAsync(HttpMethod.Post, ApiUrl("resources/copy", query),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
     }
 
     public Task<Link> MoveAsync(MoveFileRequest request, CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery("from", request.From, "path", request.Path, "overwrite", request.Overwrite.ToString().ToLower());
-        
-        return PostAsync(LinkJsonContext.Default.Link, "resources/move", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("from", request.From)
+            .Add("path", request.Path)
+            .Add("overwrite", request.Overwrite);
+
+        return SendApiRequiredAsync(HttpMethod.Post, ApiUrl("resources/move", query),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
     }
 
     public Task<Link?> DeleteAsync(DeleteFileRequest request, CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery("path", request.Path, "permanently", request.Permanently.ToString().ToLower());
-        
-        return DeleteAsync(LinkJsonContext.Default.Link, "resources", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("path", request.Path)
+            .Add("permanently", request.Permanently);
+
+        return SendApiAsync(HttpMethod.Delete, ApiUrl("resources", query),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
     }
 
-    public Task<Link> EmptyTrashAsync(string path, CancellationToken cancellationToken = default)
-    {
-        string? query = GetQuery("path", path);
-        
-        return DeleteAsync(LinkJsonContext.Default.Link, "trash/resources", query, cancellationToken);
-    }
+    public Task<Link?> EmptyTrashAsync(string? path = null, CancellationToken cancellationToken = default) =>
+        SendApiAsync(HttpMethod.Delete, ApiUrl("trash/resources", new Query().Add("path", path)),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
 
     public Task<Link> RestoreFromTrashAsync(RestoreFromTrashRequest request, CancellationToken cancellationToken = default)
     {
-        string? query = GetQuery("path", request.Path, "overwrite", request.Overwrite.ToString().ToLower(), "name", request.Name);
-        
-        return PutAsync(LinkJsonContext.Default.Link, "trash/resources", query, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
+
+        Query query = new Query()
+            .Add("path", request.Path)
+            .Add("overwrite", request.Overwrite)
+            .Add("name", request.Name);
+
+        return SendApiRequiredAsync(HttpMethod.Put, ApiUrl("trash/resources", query),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
     }
 
-    public async Task<Operation> GetOperationStatus(Link link, CancellationToken cancellationToken = default)
+    public Task<Operation> GetOperationStatusAsync(Link link, CancellationToken cancellationToken = default)
     {
-        var url = new Uri(link.Href);
+        ArgumentNullException.ThrowIfNull(link);
 
-        var method = new HttpMethod(link.Method);
-
-        var requestMessage = new HttpRequestMessage(method, url);
-        
-        Operation operation = await SendAsync(OperationJsonContext.Default.Operation, requestMessage, cancellationToken).ConfigureAwait(false);
-
-        if (operation == null)
-        {
-            throw new Exception("Unexpected empty result.");
-        }
-
-        return operation;
+        return SendApiRequiredAsync(new HttpMethod(link.Method), new Uri(link.Href),
+            YandexDiskJsonContext.Default.Operation, cancellationToken);
     }
 }

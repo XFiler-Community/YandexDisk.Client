@@ -28,26 +28,27 @@ public interface IMetaInfoClient
     /// <summary>
     /// Flat file list on Disk
     /// </summary>
-    /// <returns></returns>
     Task<FilesResourceList> GetFilesInfoAsync(FilesResourceRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Last uploaded file list on Disk
     /// </summary>
-    Task<LastUploadedResourceList> GetLastUploadedInfoAsync(LastUploadedResourceRequest request, CancellationToken cancellationToken = default);
+    Task<LastUploadedResourceList> GetLastUploadedInfoAsync(LastUploadedResourceRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Append custom properties to resource
+    /// Add or change custom properties of a resource. A null value removes the property.
     /// </summary>
-    Task<Resource> AppendCustomProperties(string path, IDictionary<string, string> properties, CancellationToken cancellationToken = default);
-        
+    Task<Resource> AppendCustomPropertiesAsync(string path, IDictionary<string, string?> properties,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
-    /// Publish resource
+    /// Publish file or folder: makes it available by a public link
     /// </summary>
-    Task<Link> PublishFolderAsync(string path, CancellationToken cancellationToken = default);
-        
+    Task<Link> PublishAsync(string path, CancellationToken cancellationToken = default);
+
     /// <summary>
-    /// Unpublish resource
+    /// Unpublish file or folder
     /// </summary>
-    Task<Link> UnpublishFolderAsync(string path, CancellationToken cancellationToken = default);
+    Task<Link> UnpublishAsync(string path, CancellationToken cancellationToken = default);
 }

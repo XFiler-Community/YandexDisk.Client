@@ -1,5 +1,3 @@
-﻿using System.Text.Json.Serialization;
-
 namespace XFiler.YandexDisk.Client.Protocol;
 
 /// <summary>
@@ -10,13 +8,11 @@ public class MoveFileRequest
     /// <summary>
     /// Путь к перемещаемому ресурсу. Например, %2Ffoo%2Fphoto.png.
     /// </summary>
-    [JsonPropertyName("from")]
     public required string From { get; init; }
 
     /// <summary>
     /// Путь к новому положению ресурса. Например, %2Fbar%2Fphoto.png.
     /// </summary>
-    [JsonPropertyName("path")]
     public required string Path { get; init; }
 
     /// <summary>
@@ -25,6 +21,5 @@ public class MoveFileRequest
     /// true — удалять файлы с совпадающими именами и записывать копируемые файлы.
     /// false — используется по умолчанию. Указывает не перезаписывать файлы и отменить копирование.
     /// </summary>
-    [JsonPropertyName("overwrite")]
     public bool Overwrite { get; set; }
 }

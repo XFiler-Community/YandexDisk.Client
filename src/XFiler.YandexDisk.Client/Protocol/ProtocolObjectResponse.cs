@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json.Serialization;
 
 namespace XFiler.YandexDisk.Client.Protocol;
@@ -11,6 +11,7 @@ public class ProtocolObjectResponse
     /// <summary>
     /// Http status code of response from Yandex Disk API
     /// </summary>
-    [JsonPropertyName("http_status_code")]
+    /// <remarks>Set from the HTTP response, not part of the JSON body.</remarks>
+    [JsonIgnore]
     public HttpStatusCode HttpStatusCode { get; set; }
 }

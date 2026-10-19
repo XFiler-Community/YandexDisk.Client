@@ -1,26 +1,24 @@
-﻿using System.Linq;
-using System.Web;
+using System;
 
 namespace YandexDisk.Client.Tests
 {
     public static class Url
     {
         /// <summary>
-        /// Polyfils for different escaping behavior in .NET 4.0 and 4.5
+        /// Escapes "/" and "," in the query the way the client does (RFC 3986, upper-case hex).
         /// </summary>
         public static string EscapePath(string url)
         {
-            if (url == null)
-            {
+            int queryStart = url.IndexOf('?');
+
+            if (queryStart < 0)
                 return url;
-            }
 
-            var parts = url.Split('?');
+            string query = url.Substring(queryStart + 1)
+                .Replace("/", Uri.EscapeDataString("/"))
+                .Replace(",", Uri.EscapeDataString(","));
 
-            string path = parts[0];
-            string query = string.Join("?", parts.Skip(1));
-
-            return path + "?" + query.Replace("/", HttpUtility.UrlEncode("/")).Replace(",", HttpUtility.UrlEncode(","));
+            return url.Substring(0, queryStart + 1) + query;
         }
     }
 }

@@ -389,7 +389,7 @@ namespace YandexDisk.Client.Tests
 
             var diskClient = CreateDiskApi(httpClientTest);
 
-            Resource result = await diskClient.MetaInfo.AppendCustomProperties("/foo", new Dictionary<string, string>  {
+            Resource result = await diskClient.MetaInfo.AppendCustomPropertiesAsync("/foo", new Dictionary<string, string?>  {
                 { "foo", "1" },
                 { "bar", "2" }
             }, CancellationToken.None).ConfigureAwait(false);
@@ -417,7 +417,7 @@ namespace YandexDisk.Client.Tests
 
             var diskClient = CreateDiskApi(httpClientTest);
 
-            Link result = await diskClient.MetaInfo.PublishFolderAsync("/foo", cancellationToken : CancellationToken.None);
+            Link result = await diskClient.MetaInfo.PublishAsync("/foo", cancellationToken : CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.AreEqual("https://cloud-api.yandex.net/v1/disk/resources?path=disk%3A%2Fbar%2Fphoto.png", result.Href);
@@ -442,7 +442,7 @@ namespace YandexDisk.Client.Tests
 
             var diskClient = CreateDiskApi(httpClientTest);
 
-            Link result = await diskClient.MetaInfo.UnpublishFolderAsync("/foo", cancellationToken: CancellationToken.None);
+            Link result = await diskClient.MetaInfo.UnpublishAsync("/foo", cancellationToken: CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.AreEqual("https://cloud-api.yandex.net/v1/disk/resources?path=disk%3A%2Fbar%2Fphoto.png", result.Href);

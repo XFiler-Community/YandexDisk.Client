@@ -10,7 +10,7 @@ namespace YandexDisk.Client.Tests;
 public class CommandsTests
 {
     [Test]
-    public async Task CreateDictionaryTest()
+    public async Task CreateDirectoryTest()
     {
         var httpClientTest = new TestHttpClient(
             methodName: "PUT",
@@ -28,7 +28,7 @@ public class CommandsTests
             logSaver: null,
             httpClient: httpClientTest);
 
-        Link result = await diskClient.Commands.CreateDictionaryAsync("/foo", CancellationToken.None).ConfigureAwait(false);
+        Link result = await diskClient.Commands.CreateDirectoryAsync("/foo", CancellationToken.None).ConfigureAwait(false);
 
         Assert.NotNull(result);
         Assert.AreEqual("https://cloud-api.yandex.net/v1/disk/resources?path=disk%3A%2FMusic", result.Href);
@@ -204,7 +204,7 @@ public class CommandsTests
             logSaver: null,
             httpClient: httpClientTest);
 
-        Operation result = await diskClient.Commands.GetOperationStatus(new Link
+        Operation result = await diskClient.Commands.GetOperationStatusAsync(new Link
         {
             Href = TestHttpClient.BaseUrl + "operations/d80c269ce4eb16c0207f0a15t4a31415313452f9e950cd9576f36b1146ee0e42",
             Method = "GET"
@@ -231,7 +231,7 @@ public class CommandsTests
             logSaver: null,
             httpClient: httpClientTest);
 
-        Operation result = await diskClient.Commands.GetOperationStatus(new Link
+        Operation result = await diskClient.Commands.GetOperationStatusAsync(new Link
         {
             Href = TestHttpClient.BaseUrl + "operations/d80c269ce4eb16c0207f0a15t4a31415313452f9e950cd9576f36b1146ee0e42",
             Method = "GET"

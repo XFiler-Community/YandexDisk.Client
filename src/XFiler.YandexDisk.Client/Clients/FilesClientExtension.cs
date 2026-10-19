@@ -11,23 +11,17 @@ namespace XFiler.YandexDisk.Client.Clients;
 /// </summary>
 public static class FilesClientExtension
 {
+    private const int FileBufferSize = 81920;
+
     /// <summary>
-    /// Just upload stream data to Yandex Disk
+    /// Upload stream data to Yandex Disk. The stream is not disposed.
     /// </summary>
-    public static async Task UploadFileAsync( this IFilesClient client,  string path, bool overwrite,  Stream file, CancellationToken cancellationToken = default)
+    public static async Task UploadFileAsync(this IFilesClient client, string path, bool overwrite, Stream file,
+        CancellationToken cancellationToken = default)
     {
-        if (client == null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
-        if (String.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
-        if (file == null)
-        {
-            throw new ArgumentNullException(nameof(file));
-        }
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(file);
 
         Link link = await client.GetUploadLinkAsync(path, overwrite, cancellationToken).ConfigureAwait(false);
 
@@ -35,44 +29,32 @@ public static class FilesClientExtension
     }
 
     /// <summary>
-    /// Just upload file from local disk to Yandex Disk
+    /// Upload file from local disk to Yandex Disk
     /// </summary>
-    public static async Task UploadFileAsync( this IFilesClient client,  string path, bool overwrite,  string localFile, CancellationToken cancellationToken)
+    public static async Task UploadFileAsync(this IFilesClient client, string path, bool overwrite, string localFile,
+        CancellationToken cancellationToken = default)
     {
-        if (client == null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
-        if (String.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
-        if (String.IsNullOrWhiteSpace(localFile))
-        {
-            throw new ArgumentNullException(nameof(localFile));
-        }
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localFile);
+
+        // Open first: a missing local file fails before an upload link is requested.
+        await using var file = new FileStream(localFile, FileMode.Open, FileAccess.Read, FileShare.Read,
+            FileBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
         Link link = await client.GetUploadLinkAsync(path, overwrite, cancellationToken).ConfigureAwait(false);
 
-        using (var file = new FileStream(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        {
-            await client.UploadAsync(link, file, cancellationToken).ConfigureAwait(false);
-        }
+        await client.UploadAsync(link, file, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Get downloaded file from Yandex Disk as stream
+    /// Open file from Yandex Disk as a network stream. Dispose it to release the connection.
     /// </summary>
-    public static async Task<Stream> DownloadFileAsync( this IFilesClient client,  string path, CancellationToken cancellationToken = default)
+    public static async Task<Stream> DownloadFileAsync(this IFilesClient client, string path,
+        CancellationToken cancellationToken = default)
     {
-        if (client == null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
-        if (String.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         Link link = await client.GetDownloadLinkAsync(path, cancellationToken).ConfigureAwait(false);
 
@@ -80,28 +62,20 @@ public static class FilesClientExtension
     }
 
     /// <summary>
-    /// Downloaded data from Yandex Disk to local file
+    /// Download file from Yandex Disk to a local file, replacing it if it exists
     /// </summary>
-    public static async Task DownloadFileAsync( this IFilesClient client,  string path,  string localFile, CancellationToken cancellationToken = default)
+    public static async Task DownloadFileAsync(this IFilesClient client, string path, string localFile,
+        CancellationToken cancellationToken = default)
     {
-        if (client == null)
-        {
-            throw new ArgumentNullException(nameof(client));
-        }
-        if (String.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentNullException(nameof(path));
-        }
-        if (String.IsNullOrWhiteSpace(localFile))
-        {
-            throw new ArgumentNullException(nameof(localFile));
-        }
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localFile);
 
-        Stream data = await DownloadFileAsync(client, path, cancellationToken).ConfigureAwait(false);
+        await using Stream data = await client.DownloadFileAsync(path, cancellationToken).ConfigureAwait(false);
 
-        using (var file = new FileStream(localFile, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite))
-        {
-            await data.CopyToAsync(file, bufferSize: 81920/*keep default*/, cancellationToken: cancellationToken).ConfigureAwait(false);
-        }
+        await using var file = new FileStream(localFile, FileMode.Create, FileAccess.Write, FileShare.None,
+            FileBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        await data.CopyToAsync(file, FileBufferSize, cancellationToken).ConfigureAwait(false);
     }
 }
