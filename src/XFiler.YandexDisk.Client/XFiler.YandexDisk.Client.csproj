@@ -15,7 +15,7 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/XFiler-Community/YandexDisk.Client</PackageProjectUrl>
         <PackageIcon>icon.png</PackageIcon>
-        <Copyright>Copyright (c) 2015 Yuriy Nagaev, 2023-2026 Egor Zheludkov</Copyright>
+        <Copyright>Copyright (c) 2026 XFiler Community, 2023-2026 Egor Zheludkov, 2015 Yuriy Nagaev</Copyright>
         <PackageTags>yandex, disk, yandex-disk, cloud disk, client, aot</PackageTags>
         <RepositoryUrl>https://github.com/XFiler-Community/YandexDisk.Client.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>

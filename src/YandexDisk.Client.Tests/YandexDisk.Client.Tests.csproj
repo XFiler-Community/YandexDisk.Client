@@ -6,6 +6,7 @@
     <LangVersion>latest</LangVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <StartupObject>YandexDisk.Client.Tests.Program</StartupObject>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
