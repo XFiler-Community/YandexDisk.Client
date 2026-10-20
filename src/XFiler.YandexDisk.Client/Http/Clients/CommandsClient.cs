@@ -64,7 +64,7 @@ internal sealed class CommandsClient(ApiContext context) : DiskClientBase(contex
             .Add("overwrite", request.Overwrite)
             .Add("name", request.Name);
 
-        return SendApiRequiredAsync(HttpMethod.Put, ApiUrl("trash/resources", query),
+        return SendApiRequiredAsync(HttpMethod.Put, ApiUrl("trash/resources/restore", query),
             YandexDiskJsonContext.Default.Link, cancellationToken);
     }
 

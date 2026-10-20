@@ -168,6 +168,7 @@ Behavior changes:
 - `*AndWaitAsync` no longer block a thread, throw `YandexOperationFailedException` when the operation fails and `OperationCanceledException` when cancelled (they used to return as if it succeeded).
 - `DownloadAsync` and `DownloadFileAsync` stream the file instead of reading it into memory. `DownloadFileAsync(path, localFile)` overwrites an existing file.
 - Uploads with progress use the same `HttpClient` and are no longer cut off after 100 s. The uploaded stream is not disposed.
+- `RestoreFromTrashAsync` calls `trash/resources/restore`; it used to call `trash/resources` and always failed with 405 Method Not Allowed.
 - 403 Forbidden throws `YandexApiException`, not `NotAuthorizedException`; only 401 does.
 - Query values are escaped per RFC 3986 (a space is `%20`, not `+`); media types no longer depend on the current culture.
 - Protocol models are nullable-annotated: `Resource.Embedded`, `PublicUrl`, `Md5` and other optional fields are nullable. `Resource` gained `File`, `Sha256`, `ResourceId`, `Revision`, `MediaType`, `AntivirusStatus`; `Disk` gained `MaxFileSize`, `PaidMaxFileSize`, `IsPaid`, `Revision`.
@@ -181,9 +182,18 @@ dotnet build src/YandexDisk.Client.sln
 dotnet test src/YandexDisk.Client.sln
 ```
 
+`dotnet test` runs the unit tests; the integration tests against the real API are skipped without a token. Run them before every release: they cover paths with spaces, `+`, `&`, `%` and Cyrillic, a large upload with progress and a streamed download (both checked not to buffer the file), copy and move of a folder with many files, the trash, custom properties, publishing and an invalid token. They work in a new folder in the Disk root and delete it permanently at the end; the trash test removes only its own item from the trash.
+
+```shell
+read -s YANDEX_DISK_TOKEN && export YANDEX_DISK_TOKEN
+dotnet test src/YandexDisk.Client.sln --filter Category=Integration --logger "console;verbosity=detailed"
+```
+
+`YANDEX_DISK_LARGE_FILE_MB` (150 by default) sets the size of the large file, `YANDEX_DISK_FOLDER_FILES` (200) the number of files in the copy/move folder. CI runs with `--filter "Category!=Integration"`.
+
 The repository also has `YandexDisk.Client.CLI`, a small sample console app for uploading and downloading files. It is not published to NuGet.
 
-Releases: push a `vX.Y.Z` tag. [`publish.yml`](.github/workflows/publish.yml) builds, tests and pushes the package to NuGet.org via Trusted Publishing, with the version taken from the tag.
+Releases: run the integration tests, then push a `vX.Y.Z` tag (or `vX.Y.Z-preview.N` for a prerelease). [`publish.yml`](.github/workflows/publish.yml) builds, tests and pushes the package to NuGet.org via Trusted Publishing, with the version taken from the tag.
 
 ## History and license
 

@@ -161,7 +161,7 @@ public class CommandsTests
     {
         var httpClientTest = new TestHttpClient(
             methodName: "PUT",
-            url: TestHttpClient.BaseUrl + Url.EscapePath("trash/resources?path=/foo&overwrite=false&name=baz"),
+            url: TestHttpClient.BaseUrl + Url.EscapePath("trash/resources/restore?path=/foo&overwrite=false&name=baz"),
             httpStatusCode: HttpStatusCode.OK,
             result: @"
 {

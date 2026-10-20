@@ -33,7 +33,7 @@ jobs:
         run: dotnet build src/YandexDisk.Client.sln --no-restore --configuration Release -p:Version=$VERSION
 
       - name: Test
-        run: dotnet test src/YandexDisk.Client.sln --no-build --configuration Release
+        run: dotnet test src/YandexDisk.Client.sln --no-build --configuration Release --filter "Category!=Integration"
 
       - name: Pack
         run: dotnet pack src/XFiler.YandexDisk.Client/XFiler.YandexDisk.Client.csproj --no-build --configuration Release --output ./nupkgs -p:Version=$VERSION
