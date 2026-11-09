@@ -1,5 +1,7 @@
-﻿using System.IO;
+using System.IO;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using XFiler.YandexDisk.Client.Http;
@@ -112,5 +114,42 @@ public class FilesClientTests
         var content = new StreamReader(stream).ReadToEnd();
 
         Assert.AreEqual(@"Test file content", content);
+    }
+
+    [Test]
+    public async Task DownloadRangeAsync_SendsRangeHeader_AndReportsPartialContent()
+    {
+        var link = new Link { Href = "https://downloader.dst.yandex.ru/disk/", Method = "GET" };
+        string? sentRange = null;
+
+        var http = new FakeHttpClient().Respond((request, _) =>
+        {
+            sentRange = request.Headers.Range?.ToString();
+            var response = new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = new StringContent("cdef") };
+            response.Content.Headers.ContentRange = new ContentRangeHeaderValue(2, 5, 10);
+            return Task.FromResult(response);
+        });
+
+        var api = new DiskHttpApi(FakeHttpClient.BaseUrl, logSaver: null, httpClient: http);
+
+        (Stream stream, bool isPartial, long? total) = await api.Files.DownloadRangeAsync(link, offset: 2, count: 4);
+
+        Assert.That(sentRange, Is.EqualTo("bytes=2-5"));
+        Assert.That(isPartial, Is.True);
+        Assert.That(total, Is.EqualTo(10));
+        Assert.That(await new StreamReader(stream).ReadToEndAsync(), Is.EqualTo("cdef"));
+    }
+
+    [Test]
+    public async Task DownloadRangeAsync_ServerIgnoresRange_IsNotPartial()
+    {
+        var link = new Link { Href = "https://downloader.dst.yandex.ru/disk/", Method = "GET" };
+        var http = new FakeHttpClient().Respond(HttpStatusCode.OK, "abcdefghij", "application/octet-stream");
+        var api = new DiskHttpApi(FakeHttpClient.BaseUrl, logSaver: null, httpClient: http);
+
+        (Stream stream, bool isPartial, _) = await api.Files.DownloadRangeAsync(link, offset: 2, count: 4);
+        await stream.DisposeAsync();
+
+        Assert.That(isPartial, Is.False);
     }
 }

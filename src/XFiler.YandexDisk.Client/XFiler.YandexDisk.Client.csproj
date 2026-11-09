@@ -12,7 +12,7 @@
 
     <PropertyGroup>
         <PackageId>XFiler.YandexDisk.Client</PackageId>
-        <Version>9.0.0</Version>
+        <Version>9.1.0</Version>
         <Product>Yandex Disk RestAPI Client for .NET</Product>
         <Description>.NET library wrapper of Yandex Desktop RestAPI.
             See https://tech.yandex.ru/disk/

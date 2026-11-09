@@ -87,7 +87,21 @@ await using (content)
 {
     // read content
 }
+
+// A byte range (HTTP Range) of the same link — read a large file as several ranges at once:
+// Yandex limits the speed of each connection, not of the account
+var (part, isPartial, total) = await disk.Files.DownloadRangeAsync(downloadLink, offset: 0, count: 8 << 20);
+await using (part)
+{
+    // isPartial is false when the server sent the whole file instead; total is the file length
+}
 ```
+
+Uploads have no ranges or parts in the REST API: a file goes as one PUT to its upload link. The API also limits the
+upload speed of some file types to about 120 KiB/s, by the name the link is issued for — measured in November 2026:
+`.zip`, `.mp4`, `.bin`, `.dat` limited; `.jpg`, `.txt`, `.bak` and no extension ~2 MiB/s. The website, an internal
+service, has no such limit. Several files at once each get their own link and their own limit. Downloads are not
+limited per type, but each connection is: 150 MiB took 285 s as one stream and 30 s as 8 MiB ranges four at a time.
 
 ## Files and folders
 

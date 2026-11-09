@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,4 +48,20 @@ public interface IFilesClient
     /// Like <see cref="DownloadAsync"/>, also returning the file length from Content-Length (0 if unknown).
     /// </summary>
     Task<(Stream Stream, long Length)> DownloadFastAsync(Link link, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Open <paramref name="count"/> bytes from <paramref name="offset"/> of the file behind a link from
+    /// <see cref="GetDownloadLinkAsync"/> (an HTTP Range request). A link serves any number of ranges, so a large file
+    /// can be read as several ranges at once: Yandex limits the speed of each connection, not of the account.
+    /// <c>IsPartial</c> is false when the server ignored the range and sent the whole file instead;
+    /// <c>TotalLength</c> is the file length from Content-Range, null when the server did not say.
+    /// </summary>
+    /// <remarks>The default implementation, for clients written before ranges existed, sends the whole file.</remarks>
+    async Task<(Stream Stream, bool IsPartial, long? TotalLength)> DownloadRangeAsync(Link link, long offset, long count,
+        CancellationToken cancellationToken = default)
+    {
+        (Stream stream, long length) = await DownloadFastAsync(link, cancellationToken).ConfigureAwait(false);
+
+        return (stream, false, length > 0 ? length : null);
+    }
 }

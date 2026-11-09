@@ -184,11 +184,101 @@ public class RealApiTests
         }
 
         long downloadAllocated = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
-        Log($"Download: {download.Elapsed.TotalSeconds:0} s, {downloadAllocated / 1_048_576} MiB allocated");
+        double streamSeconds = download.Elapsed.TotalSeconds;
+        Log($"Download: {streamSeconds:0} s, {downloadAllocated / 1_048_576} MiB allocated");
 
         Assert.AreEqual(size, length);
         CollectionAssert.AreEqual(expectedMd5, downloadedMd5);
         Assert.Less(downloadAllocated, size / 4, "download must stream, not buffer the file");
+
+        // The same file as 8 MiB ranges, four at once, from the same link: Yandex limits each connection.
+        const int chunk = 8 * 1_048_576;
+        var ranged = Stopwatch.StartNew();
+        int chunks = (int)((size + chunk - 1) / chunk);
+        var parts = new byte[chunks][];
+        using var gate = new SemaphoreSlim(4);
+
+        await Task.WhenAll(Enumerable.Range(0, chunks).Select(async i =>
+        {
+            await gate.WaitAsync(timeout.Token);
+
+            try
+            {
+                long offset = (long)i * chunk;
+                int count = (int)Math.Min(chunk, size - offset);
+                (Stream range, bool isPartial, long? total) =
+                    await _disk.Files.DownloadRangeAsync(downloadLink, offset, count, timeout.Token);
+
+                await using (range)
+                {
+                    Assert.IsTrue(isPartial, $"range {offset}+{count} was not served as a range");
+                    Assert.AreEqual(size, total);
+
+                    parts[i] = new byte[count];
+                    await range.ReadExactlyAsync(parts[i], timeout.Token);
+                    Assert.AreEqual(-1, range.ReadByte(), "the range must end where it was asked to");
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        using var rangedMd5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+        foreach (byte[] part in parts)
+            rangedMd5.AppendData(part);
+
+        Log($"Download in ranges (4 x 8 MiB at once): {ranged.Elapsed.TotalSeconds:0.0} s " +
+            $"vs {streamSeconds:0.0} s as one stream");
+
+        CollectionAssert.AreEqual(expectedMd5, rangedMd5.GetHashAndReset());
+    }
+
+    /// <summary>
+    /// Experiment, not a release gate: how fast the API takes the same bytes under different names. Yandex is said to
+    /// limit uploads of some file types to 128 KiB/s, decided by the name when the upload link is issued. The last two
+    /// rows check the workaround: upload under a neutral name, then rename on the server.
+    /// </summary>
+    [Test]
+    [Explicit("Experiment: several minutes against a throttled API")]
+    public async Task UploadSpeed_ByExtension()
+    {
+        long size = ReadLong("YANDEX_DISK_PROBE_FILE_MB", 4) * 1_048_576;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        string[] names = ["probe.bin", "probe.zip", "probe.mp4", "probe.jpg", "probe.txt", "probe.dat", "probe.bak", "probe"];
+        var lines = new List<string>();
+
+        async Task<double> UploadAsync(string name)
+        {
+            var watch = Stopwatch.StartNew();
+            Link link = await _disk.Files.GetUploadLinkAsync($"{_root}/{name}", overwrite: true, timeout.Token);
+            await _disk.Files.UploadAsync(link, new GeneratedStream(size, seed: 7), timeout.Token);
+            return size / 1024.0 / watch.Elapsed.TotalSeconds;
+        }
+
+        foreach (string name in names)
+        {
+            double speed = await UploadAsync(name);
+            lines.Add($"{name,-28} {speed,8:0} KiB/s");
+            Log(lines[^1]);
+        }
+
+        // The workaround: a neutral name for the upload, the real one by a server-side rename
+        foreach ((string upload, string final) in new[] { ("archive.zip.part", "archive.zip"), ("archive-zip", "archive2.zip") })
+        {
+            var watch = Stopwatch.StartNew();
+            double speed = await UploadAsync(upload);
+            await _disk.Commands.MoveAndWaitAsync(
+                new MoveFileRequest { From = $"{_root}/{upload}", Path = $"{_root}/{final}", Overwrite = true }, timeout.Token);
+            Resource moved = await _disk.MetaInfo.GetInfoAsync(new ResourceRequest { Path = $"{_root}/{final}" }, timeout.Token);
+
+            lines.Add($"{upload + " -> " + final,-28} {speed,8:0} KiB/s upload, {watch.Elapsed.TotalSeconds:0.0} s with rename, " +
+                      $"size ok: {moved.Size == size}, mime {moved.MimeType}");
+            Log(lines[^1]);
+        }
+
+        TestContext.Out.WriteLine(string.Join(Environment.NewLine, lines));
     }
 
     [Test]

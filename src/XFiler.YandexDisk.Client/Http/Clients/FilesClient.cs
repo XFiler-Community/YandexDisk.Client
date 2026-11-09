@@ -1,6 +1,8 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using XFiler.YandexDisk.Client.Clients;
@@ -50,6 +52,37 @@ internal sealed class FilesClient(ApiContext context) : DiskClientBase(context),
             Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
 
             return (stream, response.Content.Headers.ContentLength ?? 0);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
+    }
+
+    public async Task<(Stream Stream, bool IsPartial, long? TotalLength)> DownloadRangeAsync(Link link, long offset, long count,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
+
+        using HttpRequestMessage request = CreateRequest(link);
+        request.Headers.Range = new RangeHeaderValue(offset, offset + count - 1);
+
+        HttpResponseMessage response = await SendTransferAsync(request, HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            ContentRangeHeaderValue? range = response.Content.Headers.ContentRange;
+
+            bool isPartial = response.StatusCode == HttpStatusCode.PartialContent &&
+                             (range is not { HasRange: true } || (range.From == offset && range.To == offset + count - 1));
+
+            Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+
+            return (stream, isPartial, isPartial ? range?.Length : response.Content.Headers.ContentLength);
         }
         catch
         {
