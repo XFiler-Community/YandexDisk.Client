@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace XFiler.YandexDisk.Client.Protocol;
 
 /// <summary>
-/// Статус операции. Операции запускаются, когда вы копируете, перемещаете или удаляете непустые папки. 
+/// Статус операции. Операции запускаются, когда вы копируете, перемещаете или удаляете непустые папки и загружаете файл по URL. 
 /// URL для запроса статуса возвращается в ответ на такие запросы.
 /// </summary>
 public class Operation : ProtocolObjectResponse
@@ -48,7 +48,8 @@ internal class OperationJsonConverter : JsonConverter<OperationStatus>
         return stringValue switch
         {
             "success" => OperationStatus.Success,
-            "failure" => OperationStatus.Failure,
+            // the API says "failed"; "failure" is kept for whatever answered it before
+            "failed" or "failure" => OperationStatus.Failure,
             "in-progress" => OperationStatus.InProgress,
             _ => OperationStatus.Failure
         };
@@ -61,7 +62,7 @@ internal class OperationJsonConverter : JsonConverter<OperationStatus>
         {
             OperationStatus.Success => "success",
             OperationStatus.InProgress => "in-progress",
-            _ => "failure"
+            _ => "failed"
         });
     }
 }

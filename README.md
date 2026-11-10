@@ -97,6 +97,15 @@ await using (part)
 }
 ```
 
+Yandex can also download a file from the internet by itself — another cloud's temporary link, say — so it never
+passes through your computer. The file must be reachable without your credentials; the operation has no progress,
+Yandex does not retry it, and a path that already exists is refused (409):
+
+```csharp
+Link operation = await disk.Files.UploadFromUrlAsync("/Video/video.mp4", "https://example.com/video.mp4");
+await disk.Commands.WaitForOperationAsync(operation); // YandexOperationFailedException when the download failed
+```
+
 Uploads have no ranges or parts in the REST API: a file goes as one PUT to its upload link. The API also limits the
 upload speed of some file types to about 120 KiB/s, by the name the link is issued for — measured in November 2026:
 `.zip`, `.mp4`, `.bin`, `.dat` limited; `.jpg`, `.txt`, `.bak` and no extension ~2 MiB/s. The website, an internal

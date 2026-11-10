@@ -30,6 +30,21 @@ internal sealed class FilesClient(ApiContext context) : DiskClientBase(context),
         return UploadCoreAsync(link, new UploadContent(file, fileSize > 0 ? fileSize : null, bytesSent), cancellationToken);
     }
 
+    public Task<Link> UploadFromUrlAsync(string path, string url, bool disableRedirects = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentException.ThrowIfNullOrEmpty(url);
+
+        Query query = new Query()
+            .Add("path", path)
+            .Add("url", url)
+            .Add("disable_redirects", disableRedirects);
+
+        return SendApiRequiredAsync(HttpMethod.Post, ApiUrl("resources/upload", query),
+            YandexDiskJsonContext.Default.Link, cancellationToken);
+    }
+
     public Task<Link> GetDownloadLinkAsync(string path, CancellationToken cancellationToken = default) =>
         SendApiRequiredAsync(HttpMethod.Get, ApiUrl("resources/download", new Query().Add("path", path)),
             YandexDiskJsonContext.Default.Link, cancellationToken);

@@ -132,6 +132,49 @@ public class RegressionTests
     }
 
     [Test]
+    public void WaitForOperation_FailedStatusThrows()
+    {
+        // The API answers "failed"; the converter only knew "failure" (it still failed, by falling through)
+        var http = new FakeHttpClient()
+            .Respond(HttpStatusCode.Accepted, OperationLink)
+            .RespondOperation("failed");
+
+        Assert.ThrowsAsync<YandexOperationFailedException>(() => http.CreateApi().Commands.CopyAndWaitAsync(
+            new CopyFileRequest { From = "/a", Path = "/b" }, CancellationToken.None, FastPoll));
+    }
+
+    [Test]
+    public async Task UploadFromUrl_PostsPathAndUrlThenWaits()
+    {
+        const string url = "https://dl.example.com/f?a=1&b=2";
+        var http = new FakeHttpClient()
+            .Respond(HttpStatusCode.Accepted, OperationLink)
+            .RespondOperation("in-progress")
+            .RespondOperation("success");
+        var api = http.CreateApi();
+
+        Link link = await api.Files.UploadFromUrlAsync("/Фото/a b.jpg", url);
+        Assert.AreEqual(HttpStatusCode.Accepted, link.HttpStatusCode);
+
+        await api.Commands.WaitForOperationAsync(link, CancellationToken.None, FastPoll);
+
+        Assert.AreEqual("POST", http.Requests[0].Method);
+        Assert.AreEqual(FakeHttpClient.BaseUrl + "resources/upload?path=" + Uri.EscapeDataString("/Фото/a b.jpg")
+            + "&url=" + Uri.EscapeDataString(url) + "&disable_redirects=false", http.Requests[0].Url);
+        Assert.AreEqual(3, http.Requests.Count);
+    }
+
+    [Test]
+    public void UploadFromUrl_ExistingPathThrowsConflict()
+    {
+        var http = new FakeHttpClient().Respond(HttpStatusCode.Conflict,
+            """{ "error": "DiskResourceAlreadyExistsError", "description": "Resource already exists" }""");
+
+        var e = Assert.ThrowsAsync<YandexApiException>(() => http.CreateApi().Files.UploadFromUrlAsync("/a", "https://x/y"));
+        Assert.AreEqual(HttpStatusCode.Conflict, e!.StatusCode);
+    }
+
+    [Test]
     public void DeleteAndWait_CancellationThrows()
     {
         using var cts = new CancellationTokenSource();
