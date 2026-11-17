@@ -19,7 +19,7 @@ A .NET client for the [Yandex Disk REST API](https://yandex.ru/dev/disk/rest/). 
 dotnet add package XFiler.YandexDisk.Client
 ```
 
-Targets `net8.0` (works on any newer .NET).
+Targets `net10.0` (works on any newer .NET).
 
 ## Quick start
 
